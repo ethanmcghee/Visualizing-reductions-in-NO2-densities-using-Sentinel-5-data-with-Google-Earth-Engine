@@ -1,0 +1,53 @@
+##In GEE, draw a polygon over your desired region. This will be used as the geometry variable. 
+
+##Change the start/end date to desired timeline.
+
+var startDate = '2019-04-29';
+var endDate = '2020-04-29';
+var weekDifference = ee.Date(startDate).advance(1, 'week').millis().subtract(ee.Date(startDate).millis());
+var listMap = ee.List.sequence(ee.Date(startDate).millis(), ee.Date(endDate).millis(), weekDifference);
+
+##Accessing the Sentinel-5 offline NO2 data, and selecting the column_number_density band. Filtering the Image Collection by the dates listed above. 
+
+function getWeekly(date) {
+  var date = ee.Date(date);
+  var sentinel1 = ee.ImageCollection('COPERNICUS/S5P/OFFL/L3_NO2')
+                      .select('tropospheric_NO2_column_number_density')
+                      .filterDate(date, date.advance(1, 'week'))
+                      .mean();
+  return sentinel1;
+}
+
+var image_prior = ee.ImageCollection.fromImages(listMap.map(function(dateMillis){
+  var date = ee.Date(dateMillis);
+  return getWeekly(date);
+}));
+var Nox = image_prior.combine(image_prior).combine(image_prior)
+.map(function(image) {
+  return image.divide(0.0003).multiply(255).uint8();
+});
+
+var count = image_prior.size();
+print('Count: ', count);
+
+##Visualizing the data using a pre-made palette and selecting the region of interest using the geometry mentioned above. 
+
+var palettes = require('users/gena/packages:palettes');
+var palette = palettes.matplotlib.magma[7];
+var bounds = geometry.bounds()
+
+Map.centerObject(bounds)
+var filmArgs = {
+    min: 0.00001,
+    max: 0.0003,
+    maxPixels: 27017280,
+    palette : palette,
+    opacity:0.75,
+    region: geometry,
+    crs:'EPSG:3857',
+    dimensions: 480,
+    framesPerSecond:2,
+};
+
+
+print(image_prior.getVideoThumbURL(filmArgs));
