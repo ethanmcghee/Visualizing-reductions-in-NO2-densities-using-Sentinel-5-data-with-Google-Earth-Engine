@@ -1,0 +1,42 @@
+##Modifying code to work with MODIS LandSat Datasets
+
+var collection = ee.ImageCollection('MODIS/006/MOD11A1')
+  .select('LST_Day_1km')
+  .filterDate('2018-01-01', '2018-05-01');
+
+var landSurfaceTemperatureVis = {
+  min: 13000.0,
+  max: 16500.0,
+  palette: [
+    '040274', '040281', '0502a3', '0502b8', '0502ce', '0502e6',
+    '0602ff', '235cb1', '307ef3', '269db1', '30c8e2', '32d3ef',
+    '3be285', '3ff38f', '86e26f', '3ae237', 'b5e22e', 'd6e21f',
+    'fff705', 'ffd611', 'ffb613', 'ff8b13', 'ff6e08', 'ff500d',
+    'ff0000', 'de0101', 'c21301', 'a71001', '911003'
+  ],
+};
+
+var region = ee.FeatureCollection([
+  ee.Feature(    // NYC.
+    ee.Geometry.Point(-73.996, 40.747).buffer(100000), {label: 'NYC'}),
+]);
+var mask = ee.Image.constant(1).clip(region.geometry()).mask();
+collection = collection.map(function(image){return image.updateMask(mask)});
+Map.addLayer(collection.mean(), landSurfaceTemperatureVis, 'LST_Day_1km');
+Map.setCenter(-73.996, 40.747, 6);
+
+var median = collection.reduce(ee.Reducer.median());
+var vis_param = {bands: ['LST_Day_1km'], gamma: 16500.0};
+Map.addLayer(median, landSurfaceTemperatureVis);
+
+Export.image.toDrive({
+  image: median,
+  description: 'vis_param_landsat',
+  scale: 30,
+  region: region,
+  fileFormat: 'GeoTIFF',
+  formatOptions: {
+    cloudOptimized: true
+  }
+});
+
