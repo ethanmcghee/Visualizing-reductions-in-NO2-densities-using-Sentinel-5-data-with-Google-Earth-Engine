@@ -1,0 +1,43 @@
+##Accessing the Sentinel-5 dataset, selecting the column_number_density band, and filtering by date. For filtering by date, remember to use at least two days, as the Sentinel-5 data comes as an Image collection. 
+
+var collection = ee.ImageCollection('COPERNICUS/S5P/NRTI/L3_NO2')
+  .select('NO2_column_number_density')
+  .filterDate('2019-06-01', '2019-06-06');
+
+##Visualizing the column_number_density band with a color palette.
+
+var band_viz = {
+  min: 0,
+  max: 0.0002,
+  palette: ['black', 'blue', 'purple', 'cyan', 'green', 'yellow', 'red']
+};
+
+## selecting the region by applying a buffer around a lat/long point. For our example we looked at New York City, but the buffer distance (in km) and lat/long can be changed as needed. 
+
+var region = ee.FeatureCollection([
+  ee.Feature(    // NYC.
+    ee.Geometry.Point(-73.996, 40.747).buffer(100000), {label: 'NYC'}),
+]);
+
+var mask = ee.Image.constant(1).clip(region.geometry()).mask();
+collection = collection.map(function(image){return image.updateMask(mask)});
+Map.addLayer(collection.mean(), band_viz, 'S5P N02');
+Map.setCenter(-73.996, 40.747, 6);
+
+var median = collection.reduce(ee.Reducer.median());
+var vis_param = {bands: ['NO2_column_number_density'], gamma: 0.0002};
+Map.addLayer(median, band_viz);
+
+## Exporting image into a GEOTIFF format, which can be analyzed in ArcGIS programs such as ArcPro. Change the description to a unique name for easier storage. 
+
+Export.image.toDrive({
+  image: median,
+  description: 'vis_param_NO2',
+  scale: 30,
+  region: region,
+  fileFormat: 'GeoTIFF',
+  formatOptions: {
+    cloudOptimized: true
+  }
+});
+
